@@ -19,21 +19,7 @@ type TimeMixin struct {
 	// We embed the `mixin.Schema` to avoid
 	// implementing the rest of the methods.
 	mixin.Schema
-	NewQuery func(ent.Query) (interface {
-		// Type returns the string representation of the query type.
-		Type() string
-		// Limit the number of records to be returned by this query.
-		Limit(int)
-		// Offset to start from.
-		Offset(int)
-		// Unique configures the query builder to filter duplicate records.
-		Unique(bool)
-		// Order specifies how the records should be ordered.
-		Order(...func(*sql.Selector))
-		// WhereP appends storage-level predicates to the query builder. Using this method, users
-		// can use type-assertion to append predicates that do not depend on any generated package.
-		WhereP(...func(*sql.Selector))
-	}, error)
+	InterceptorNewQueryFunc any
 }
 
 func (TimeMixin) Fields() []ent.Field {
@@ -72,8 +58,8 @@ type Query interface {
 }
 
 type TraverseFunc struct {
-	NewQuery    func(ent.Query) (Query, error)
-	Interceptor func(context.Context, Query) error
+	InterceptorNewQueryFunc any //func(ent.Query) (Query, error)
+	Interceptor             func(context.Context, Query) error
 }
 
 // Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
@@ -83,7 +69,11 @@ func (f TraverseFunc) Intercept(next ent.Querier) ent.Querier {
 
 // Traverse calls f(ctx, q).
 func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
-	query, err := f.NewQuery(q)
+	_func, ok := f.InterceptorNewQueryFunc.(func(ent.Query) (Query, error))
+	if !ok {
+		return fmt.Errorf("ent: TraverseFunc.InterceptorNewQueryFunc does not implement ent.Query")
+	}
+	query, err := _func(q)
 	if err != nil {
 		return err
 	}
@@ -93,7 +83,7 @@ func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
 // Interceptors of the SoftDeleteMixin.
 func (d TimeMixin) Interceptors() []ent.Interceptor {
 	traverseFunc := TraverseFunc{
-		NewQuery: d.NewQuery,
+		InterceptorNewQueryFunc: d.InterceptorNewQueryFunc,
 		Interceptor: func(ctx context.Context, q Query) error {
 
 			// With soft-deleted, means include soft-deleted entities.
