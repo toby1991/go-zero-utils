@@ -69,7 +69,7 @@ func (f TraverseFunc) Intercept(next ent.Querier) ent.Querier {
 
 // Traverse calls f(ctx, q).
 func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
-	_func, ok := f.InterceptorNewQueryFunc.(func(ent.Query) (Query, error))
+	_func, ok := f.InterceptorNewQueryFunc.(func(ent.Query) (any, error))
 	if !ok {
 		return fmt.Errorf("ent: TraverseFunc.InterceptorNewQueryFunc does not implement ent.Query")
 	}
@@ -77,7 +77,7 @@ func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
 	if err != nil {
 		return err
 	}
-	return f.Interceptor(ctx, query)
+	return f.Interceptor(ctx, query.(Query))
 }
 
 // Interceptors of the SoftDeleteMixin.
