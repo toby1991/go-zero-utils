@@ -58,7 +58,7 @@ type Query interface {
 }
 
 type TraverseFunc struct {
-	InterceptorNewQueryFunc any //func(ent.Query) (Query, error)
+	InterceptorNewQueryFunc func(query ent.Query) (any, error) //func(ent.Query) (Query, error)
 	Interceptor             func(context.Context, Query) error
 }
 
@@ -69,11 +69,7 @@ func (f TraverseFunc) Intercept(next ent.Querier) ent.Querier {
 
 // Traverse calls f(ctx, q).
 func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
-	_func, ok := f.InterceptorNewQueryFunc.(func(ent.Query) (any, error))
-	if !ok {
-		return fmt.Errorf("ent: TraverseFunc.InterceptorNewQueryFunc does not implement ent.Query")
-	}
-	query, err := _func(q)
+	query, err := f.InterceptorNewQueryFunc(q)
 	if err != nil {
 		return err
 	}
