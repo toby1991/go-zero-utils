@@ -46,13 +46,23 @@ func (d TimeMixin) Interceptors() []ent.Interceptor {
 				return nil
 			}
 
-			qp, ok := q.(interface {
-				WhereP(...func(*sql.Selector))
-			})
-			if !ok {
-				return fmt.Errorf("unexpected query type %T", q)
+			// check query type is interceptor.Query or ent.Query
+			switch query := q.(type) {
+			case interface{ WhereP(...func(*sql.Selector)) }:
+				// 如果查询类型实现了 WhereP 方法，则使用它
+				d.P(query)
+			default:
+				// 如果查询类型没有实现 WhereP 方法，可以尝试其他方法
+				// 例如，使用通用的 Where 方法（如果存在）
+				if whereQuery, ok := q.(interface{ Where(...func(*sql.Selector)) }); ok {
+					whereQuery.Where(func(s *sql.Selector) {
+						sql.FieldIsNull("deleted_at")
+					})
+				} else {
+					// 如果既没有 WhereP 也没有 Where 方法，记录一个警告或错误
+					return fmt.Errorf("warning: Query type %T does not implement WhereP or Where method", q)
+				}
 			}
-			d.P(qp)
 			return nil
 		}),
 	}
