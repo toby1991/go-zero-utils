@@ -19,7 +19,21 @@ type TimeMixin struct {
 	// We embed the `mixin.Schema` to avoid
 	// implementing the rest of the methods.
 	mixin.Schema
-	NewQuery func(ent.Query) (Query, error)
+	NewQuery func(ent.Query) (interface {
+		// Type returns the string representation of the query type.
+		Type() string
+		// Limit the number of records to be returned by this query.
+		Limit(int)
+		// Offset to start from.
+		Offset(int)
+		// Unique configures the query builder to filter duplicate records.
+		Unique(bool)
+		// Order specifies how the records should be ordered.
+		Order(...func(*sql.Selector))
+		// WhereP appends storage-level predicates to the query builder. Using this method, users
+		// can use type-assertion to append predicates that do not depend on any generated package.
+		WhereP(...func(*sql.Selector))
+	}, error)
 }
 
 func (TimeMixin) Fields() []ent.Field {
