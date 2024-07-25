@@ -19,7 +19,7 @@ type TimeMixin struct {
 	// We embed the `mixin.Schema` to avoid
 	// implementing the rest of the methods.
 	mixin.Schema
-	InterceptorNewQueryFunc any
+	InterceptorNewQueryFunc func(query ent.Query) (any, error)
 }
 
 func (TimeMixin) Fields() []ent.Field {
