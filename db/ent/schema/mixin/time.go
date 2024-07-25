@@ -19,6 +19,7 @@ type TimeMixin struct {
 	// We embed the `mixin.Schema` to avoid
 	// implementing the rest of the methods.
 	mixin.Schema
+	NewQuery func(ent.Query) (Query, error)
 }
 
 func (TimeMixin) Fields() []ent.Field {
@@ -55,17 +56,31 @@ type Query interface {
 	// can use type-assertion to append predicates that do not depend on any generated package.
 	WhereP(...func(*sql.Selector))
 }
-type TraverseFunc func(context.Context, Query) error
+
+type TraverseFunc struct {
+	NewQuery    func(ent.Query) (Query, error)
+	Interceptor func(context.Context, Query) error
+}
 
 // Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
 func (f TraverseFunc) Intercept(next ent.Querier) ent.Querier {
 	return next
 }
 
+// Traverse calls f(ctx, q).
+func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
+	query, err := f.NewQuery(q)
+	if err != nil {
+		return err
+	}
+	return f.Interceptor(ctx, query)
+}
+
 // Interceptors of the SoftDeleteMixin.
 func (d TimeMixin) Interceptors() []ent.Interceptor {
-	return []ent.Interceptor{
-		TraverseFunc(func(ctx context.Context, q Query) error {
+	traverseFunc := TraverseFunc{
+		NewQuery: d.NewQuery,
+		Interceptor: func(ctx context.Context, q Query) error {
 
 			// With soft-deleted, means include soft-deleted entities.
 			if skip, _ := ctx.Value(withSoftDeletedKey{}).(bool); skip {
@@ -90,7 +105,11 @@ func (d TimeMixin) Interceptors() []ent.Interceptor {
 				}
 			}
 			return nil
-		}),
+		},
+	}
+
+	return []ent.Interceptor{
+		traverseFunc,
 	}
 }
 
