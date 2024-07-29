@@ -15,6 +15,7 @@ import (
 // Mixin definition
 // TimeMixin implements the ent.Mixin for sharing
 // time fields with package schemas.
+// usage: mixin.TimeMixin{InterceptorNewQueryFunc: func(q ent.Query) (any, error) { return intercept.NewQuery(q) }},
 type TimeMixin struct {
 	// We embed the `mixin.Schema` to avoid
 	// implementing the rest of the methods.
