@@ -116,35 +116,32 @@ func (d TimeMixin) Interceptors() []ent.Interceptor {
 // Hooks of the SoftDeleteMixin.
 func (d TimeMixin) Hooks() []ent.Hook {
 	return []ent.Hook{
-		On(
-			func(next ent.Mutator) ent.Mutator {
-				return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-					// Skip soft-delete, means delete the entity permanently.
-					if skip, _ := ctx.Value(withSoftDeletedKey{}).(bool); skip {
-						return next.Mutate(ctx, m)
-					}
-					//
-					//// check if delete op
-					//if !m.Op().Is(ent.OpDelete | ent.OpDeleteOne) {
-					//	return next.Mutate(ctx, m)
-					//}
-
-					mx, ok := m.(interface {
-						SetOp(ent.Op)
-						SetDeletedAt(time.Time)
-						WhereP(...func(*sql.Selector))
-					})
-					if !ok {
-						return nil, fmt.Errorf("unexpected mutation type %T", m)
-					}
-					d.P(mx)
-					mx.SetOp(ent.OpUpdate)
-					mx.SetDeletedAt(time.Now())
+		func(next ent.Mutator) ent.Mutator {
+			return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+				// Skip soft-delete, means delete the entity permanently.
+				if skip, _ := ctx.Value(withSoftDeletedKey{}).(bool); skip {
 					return next.Mutate(ctx, m)
+				}
+
+				// check if delete op
+				if !m.Op().Is(ent.OpDelete | ent.OpDeleteOne) {
+					return next.Mutate(ctx, m)
+				}
+
+				mx, ok := m.(interface {
+					SetOp(ent.Op)
+					SetDeletedAt(time.Time)
+					WhereP(...func(*sql.Selector))
 				})
-			},
-			ent.OpDeleteOne|ent.OpDelete,
-		),
+				if !ok {
+					return nil, fmt.Errorf("unexpected mutation type %T", m)
+				}
+				d.P(mx)
+				mx.SetOp(ent.OpUpdate)
+				mx.SetDeletedAt(time.Now())
+				return next.Mutate(ctx, m)
+			})
+		},
 	}
 }
 
@@ -153,117 +150,4 @@ func (d TimeMixin) P(w interface{ WhereP(...func(*sql.Selector)) }) {
 	w.WhereP(
 		sql.FieldIsNull("deleted_at"),
 	)
-}
-
-// If executes the given hook under condition.
-//
-//	hook.If(ComputeAverage, And(HasFields(...), HasAddedFields(...)))
-func If(hk ent.Hook, cond Condition) ent.Hook {
-	return func(next ent.Mutator) ent.Mutator {
-		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-			if cond(ctx, m) {
-				return hk(next).Mutate(ctx, m)
-			}
-			return next.Mutate(ctx, m)
-		})
-	}
-}
-
-// On executes the given hook only for the given operation.
-//
-//	hook.On(Log, ent.Delete|ent.Create)
-func On(hk ent.Hook, op ent.Op) ent.Hook {
-	return If(hk, HasOp(op))
-}
-
-// Condition is a hook condition function.
-type Condition func(context.Context, ent.Mutation) bool
-
-// And groups conditions with the AND operator.
-func And(first, second Condition, rest ...Condition) Condition {
-	return func(ctx context.Context, m ent.Mutation) bool {
-		if !first(ctx, m) || !second(ctx, m) {
-			return false
-		}
-		for _, cond := range rest {
-			if !cond(ctx, m) {
-				return false
-			}
-		}
-		return true
-	}
-}
-
-// Or groups conditions with the OR operator.
-func Or(first, second Condition, rest ...Condition) Condition {
-	return func(ctx context.Context, m ent.Mutation) bool {
-		if first(ctx, m) || second(ctx, m) {
-			return true
-		}
-		for _, cond := range rest {
-			if cond(ctx, m) {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-// Not negates a given condition.
-func Not(cond Condition) Condition {
-	return func(ctx context.Context, m ent.Mutation) bool {
-		return !cond(ctx, m)
-	}
-}
-
-// HasOp is a condition testing mutation operation.
-func HasOp(op ent.Op) Condition {
-	return func(_ context.Context, m ent.Mutation) bool {
-		return m.Op().Is(op)
-	}
-}
-
-// HasAddedFields is a condition validating `.AddedField` on fields.
-func HasAddedFields(field string, fields ...string) Condition {
-	return func(_ context.Context, m ent.Mutation) bool {
-		if _, exists := m.AddedField(field); !exists {
-			return false
-		}
-		for _, field := range fields {
-			if _, exists := m.AddedField(field); !exists {
-				return false
-			}
-		}
-		return true
-	}
-}
-
-// HasClearedFields is a condition validating `.FieldCleared` on fields.
-func HasClearedFields(field string, fields ...string) Condition {
-	return func(_ context.Context, m ent.Mutation) bool {
-		if exists := m.FieldCleared(field); !exists {
-			return false
-		}
-		for _, field := range fields {
-			if exists := m.FieldCleared(field); !exists {
-				return false
-			}
-		}
-		return true
-	}
-}
-
-// HasFields is a condition validating `.Field` on fields.
-func HasFields(field string, fields ...string) Condition {
-	return func(_ context.Context, m ent.Mutation) bool {
-		if _, exists := m.Field(field); !exists {
-			return false
-		}
-		for _, field := range fields {
-			if _, exists := m.Field(field); !exists {
-				return false
-			}
-		}
-		return true
-	}
 }
