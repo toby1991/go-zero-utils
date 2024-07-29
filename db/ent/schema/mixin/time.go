@@ -15,12 +15,19 @@ import (
 // Mixin definition
 // TimeMixin implements the ent.Mixin for sharing
 // time fields with package schemas.
-// usage: mixin.TimeMixin{InterceptorNewQueryFunc: func(q ent.Query) (any, error) { return intercept.NewQuery(q) }},
+
+// Usage: After first `go generate ./ent`
+// Import `"youproject.git/internal/ent/intercept"`
+// Import `ent2 "youproject.git/internal/ent"`
+// Add `mixin.TimeMixin{InterceptorNewQueryFunc: func(q ent.Query) (any, error) { return intercept.NewQuery(q) }, MutationMutatorFunc: func(mutation ent.Mutation) ent.Mutator {return mutation.(interface{ Client() *ent2.Client }).Client()}},`
+// to each schema files
+
 type TimeMixin struct {
 	// We embed the `mixin.Schema` to avoid
 	// implementing the rest of the methods.
 	mixin.Schema
 	InterceptorNewQueryFunc func(query ent.Query) (any, error)
+	MutationMutatorFunc     func(mutation ent.Mutation) ent.Mutator
 }
 
 func (TimeMixin) Fields() []ent.Field {
@@ -79,6 +86,11 @@ func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
 
 // Interceptors of the SoftDeleteMixin.
 func (d TimeMixin) Interceptors() []ent.Interceptor {
+	// not intercept
+	if d.InterceptorNewQueryFunc == nil {
+		return nil
+	}
+
 	traverseFunc := TraverseFunc{
 		InterceptorNewQueryFunc: d.InterceptorNewQueryFunc,
 		Interceptor: func(ctx context.Context, q Query) error {
@@ -91,11 +103,10 @@ func (d TimeMixin) Interceptors() []ent.Interceptor {
 			// check query type is interceptor.Query or ent.Query
 			switch query := q.(type) {
 			case interface{ WhereP(...func(*sql.Selector)) }:
-				// 如果查询类型实现了 WhereP 方法，则使用它
+				// if query has implement WhereP
 				d.P(query)
 			default:
-				// 如果查询类型没有实现 WhereP 方法，可以尝试其他方法
-				// 例如，使用通用的 Where 方法（如果存在）
+				// or Where
 				if whereQuery, ok := q.(interface{ Where(...func(*sql.Selector)) }); ok {
 					whereQuery.Where(func(s *sql.Selector) {
 						sql.FieldIsNull("deleted_at")
@@ -114,34 +125,54 @@ func (d TimeMixin) Interceptors() []ent.Interceptor {
 	}
 }
 
+type MutateFunc struct {
+	MutationMutatorFunc func(m ent.Mutation) ent.Mutator                             //func(ent.Query) (Query, error)
+	Mutator             func(ctx context.Context, m ent.Mutation) (ent.Value, error) // func(next ent.Mutator) ent.Mutator
+}
+
+func (m MutateFunc) Mutate(ctx context.Context, mutation ent.Mutation) (ent.Value, error) {
+	// won't do anything
+	return m.Mutator(ctx, mutation)
+}
+
 // Hooks of the SoftDeleteMixin.
 func (d TimeMixin) Hooks() []ent.Hook {
+	// not hook
+	if d.MutationMutatorFunc == nil {
+		return nil
+	}
+
 	return []ent.Hook{
 		func(next ent.Mutator) ent.Mutator {
-			return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-				// Skip soft-delete, means delete the entity permanently.
-				if skip, _ := ctx.Value(withSoftDeletedKey{}).(bool); skip {
-					return next.Mutate(ctx, m)
-				}
+			mutateFunc := MutateFunc{
+				MutationMutatorFunc: d.MutationMutatorFunc,
+				Mutator: func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+					// Skip soft-delete, means delete the entity permanently.
+					if skip, _ := ctx.Value(withSoftDeletedKey{}).(bool); skip {
+						return next.Mutate(ctx, m)
+					}
 
-				// check if delete op
-				if !m.Op().Is(ent.OpDelete | ent.OpDeleteOne) {
-					return next.Mutate(ctx, m)
-				}
+					// check if delete op
+					if !m.Op().Is(ent.OpDelete | ent.OpDeleteOne) {
+						return next.Mutate(ctx, m)
+					}
 
-				mx, ok := m.(interface {
-					SetOp(ent.Op)
-					SetDeletedAt(time.Time)
-					WhereP(...func(*sql.Selector))
-				})
-				if !ok {
-					return nil, fmt.Errorf("unexpected mutation type %T", m)
-				}
-				d.P(mx)
-				mx.SetOp(ent.OpUpdate)
-				mx.SetDeletedAt(time.Now())
-				return next.Mutate(ctx, mx.(ent.Mutation))
-			})
+					mx, ok := m.(interface {
+						SetOp(ent.Op)
+						SetDeletedAt(time.Time)
+						WhereP(...func(*sql.Selector))
+					})
+					if !ok {
+						return nil, fmt.Errorf("unexpected mutation type %T", m)
+					}
+					d.P(mx)
+					mx.SetOp(ent.OpUpdate)
+					mx.SetDeletedAt(time.Now())
+
+					return d.MutationMutatorFunc(mx.(ent.Mutation)).Mutate(ctx, m)
+				},
+			}
+			return mutateFunc
 		},
 	}
 }
