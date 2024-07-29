@@ -140,7 +140,7 @@ func (d TimeMixin) Hooks() []ent.Hook {
 				d.P(mx)
 				mx.SetOp(ent.OpUpdate)
 				mx.SetDeletedAt(time.Now())
-				return next.Mutate(ctx, m)
+				return next.Mutate(ctx, mx.(ent.Mutation))
 			})
 		},
 	}
