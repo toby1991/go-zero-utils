@@ -58,14 +58,14 @@ func grpcResponse(w http.ResponseWriter, err error) bool {
 	case codes.NotFound:
 		httpx.WriteJson(w, http.StatusNotFound, &Body{
 			Code: -1,
-			Msg:  err.Error(),
+			Msg:  ev.Message(),
 			Data: nil,
 		})
 		return true
 	case codes.PermissionDenied:
 		httpx.WriteJson(w, http.StatusForbidden, &Body{
 			Code: -1,
-			Msg:  err.Error(),
+			Msg:  ev.Message(),
 			Data: nil,
 		})
 		return true
@@ -73,7 +73,7 @@ func grpcResponse(w http.ResponseWriter, err error) bool {
 		// default
 		httpx.WriteJson(w, http.StatusUnprocessableEntity, &Body{
 			Code: -1,
-			Msg:  err.Error(),
+			Msg:  ev.Message(),
 			Data: nil,
 		})
 		return true
