@@ -3,6 +3,7 @@ package bizredis
 import (
 	"context"
 	"github.com/go-redis/redis/v8"
+	"github.com/toby1991/go-zero-utils/cacher"
 	"github.com/zeromicro/go-zero/core/breaker"
 	"github.com/zeromicro/go-zero/core/logx"
 	"strconv"
@@ -16,22 +17,6 @@ type redisClient struct {
 	brk    breaker.Breaker
 }
 
-type BasicCacher interface {
-	Prefix() string
-
-	Has(key string) bool
-	Get(key string, defaultValue ...interface{}) interface{}
-	Pull(key string, defaultValue ...interface{}) interface{}
-	Put(key string, value interface{}, future time.Time) bool
-	Add(key string, value interface{}, future time.Time) bool
-	Increment(key string, value int64) (incremented int64, success bool)
-	Decrement(key string, value int64) (decremented int64, success bool)
-	Forever(key string, value interface{}) bool
-	Forget(key string) bool
-
-	Close() error
-}
-
 func (c *redisClient) Client() *redis.Client {
 	return c.client
 }
@@ -40,7 +25,7 @@ func (c *redisClient) Prefix() string {
 	return c.prefix
 }
 func (c *redisClient) Has(key string) bool {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	exists, err := c.client.Exists(context.Background(), k.Prefixed()).Result()
 	if err != nil {
@@ -54,7 +39,7 @@ func (c *redisClient) Has(key string) bool {
 	return true
 }
 func (c *redisClient) Get(key string, defaultValue ...interface{}) interface{} {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	if !c.Has(k.Raw()) {
 		// @todo Event CacheMissed
@@ -73,7 +58,7 @@ func (c *redisClient) Get(key string, defaultValue ...interface{}) interface{} {
 	return valStr
 }
 func (c *redisClient) Pull(key string, defaultValue ...interface{}) interface{} {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	val := c.Get(k.Raw(), defaultValue...)
 	if val == nil {
@@ -85,9 +70,9 @@ func (c *redisClient) Pull(key string, defaultValue ...interface{}) interface{} 
 	return val
 }
 func (c *redisClient) Put(key string, value interface{}, future time.Time) bool {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
-	_, err := c.client.Set(context.Background(), k.Prefixed(), value, DurationFromNow(future)).Result()
+	_, err := c.client.Set(context.Background(), k.Prefixed(), value, cacher.DurationFromNow(future)).Result()
 	if err != nil {
 		logx.Error(err)
 		return false
@@ -98,7 +83,7 @@ func (c *redisClient) Put(key string, value interface{}, future time.Time) bool 
 	// @todo Event KeyWritten
 }
 func (c *redisClient) Add(key string, value interface{}, future time.Time) bool {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	// if expired return false
 	ttl, err := c.client.TTL(context.Background(), k.Prefixed()).Result()
@@ -121,7 +106,7 @@ func (c *redisClient) Add(key string, value interface{}, future time.Time) bool 
 	return result
 }
 func (c *redisClient) Increment(key string, value int64) (incremented int64, success bool) {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	incremented, err := c.client.IncrBy(context.Background(), k.Prefixed(), value).Result()
 	if err != nil {
@@ -132,7 +117,7 @@ func (c *redisClient) Increment(key string, value int64) (incremented int64, suc
 	return incremented, true
 }
 func (c *redisClient) Decrement(key string, value int64) (decremented int64, success bool) {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	decremented, err := c.client.DecrBy(context.Background(), k.Prefixed(), value).Result()
 	if err != nil {
@@ -143,7 +128,7 @@ func (c *redisClient) Decrement(key string, value int64) (decremented int64, suc
 	return decremented, true
 }
 func (c *redisClient) Forever(key string, value interface{}) bool {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	_, err := c.client.Set(context.Background(), k.Prefixed(), value, 0).Result()
 	if err != nil {
@@ -155,7 +140,7 @@ func (c *redisClient) Forever(key string, value interface{}) bool {
 	return true
 }
 func (c *redisClient) Forget(key string) bool {
-	k := NewKey(key, c.Prefix())
+	k := cacher.NewKey(key, c.Prefix())
 
 	result, err := c.client.Del(context.Background(), k.Prefixed()).Result()
 	if err != nil {
@@ -184,8 +169,4 @@ func NewRedis(conf BizRedisConf) *redisClient {
 		prefix: conf.Prefix,
 		brk:    breaker.NewBreaker(),
 	}
-}
-
-func DurationFromNow(future time.Time) time.Duration {
-	return future.Sub(time.Now())
 }

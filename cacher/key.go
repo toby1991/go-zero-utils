@@ -1,4 +1,4 @@
-package bizredis
+package cacher
 
 type key struct {
 	raw    string

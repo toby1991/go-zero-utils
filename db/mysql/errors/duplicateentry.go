@@ -1,8 +1,8 @@
 package errors
 
 import (
-	"github.com/go-sql-driver/mysql"
 	"errors"
+	"github.com/go-sql-driver/mysql"
 )
 
 func IsDuplicateEntry(err error) bool {

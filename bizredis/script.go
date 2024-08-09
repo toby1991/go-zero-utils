@@ -3,6 +3,7 @@ package bizredis
 import (
 	"context"
 	red "github.com/go-redis/redis/v8"
+	"github.com/toby1991/go-zero-utils/cacher"
 )
 
 type RedisScripter interface {
@@ -45,7 +46,7 @@ func (c *redisClient) ScriptLoadCtx(ctx context.Context, script string) (string,
 // ScriptRun is the implementation of *redis.Script run command.
 func (c *redisClient) ScriptRun(script *Script, keys []string, args ...any) (any, error) {
 	for i, key := range keys {
-		keys[i] = NewKey(key, c.Prefix()).Prefixed()
+		keys[i] = cacher.NewKey(key, c.Prefix()).Prefixed()
 	}
 
 	return c.ScriptRunCtx(context.Background(), script, keys, args...)
@@ -54,7 +55,7 @@ func (c *redisClient) ScriptRun(script *Script, keys []string, args ...any) (any
 // ScriptRunCtx is the implementation of *redis.Script run command.
 func (c *redisClient) ScriptRunCtx(ctx context.Context, script *Script, keys []string, args ...any) (val any, err error) {
 	for i, key := range keys {
-		keys[i] = NewKey(key, c.Prefix()).Prefixed()
+		keys[i] = cacher.NewKey(key, c.Prefix()).Prefixed()
 	}
 
 	err = c.brk.DoWithAcceptable(func() error {
