@@ -10,11 +10,11 @@ import (
 	c "github.com/patrickmn/go-cache"
 )
 
-func NewMemory(prefix string, defaultExpirationMinute uint, cleanUpIntervalMinute uint) *memory {
+func NewMemory(conf BizMemoryConf) *memory {
 	return &memory{
 		memoryBasic{
-			cache:  c.New(time.Duration(defaultExpirationMinute)*time.Minute, time.Duration(cleanUpIntervalMinute)*time.Minute),
-			prefix: prefix,
+			cache:  c.New(time.Duration(conf.DefaultExpirationMinute)*time.Minute, time.Duration(conf.CleanUpIntervalMinute)*time.Minute),
+			prefix: conf.Prefix,
 		},
 	}
 }
