@@ -1,5 +1,7 @@
 package cacher
 
+import "time"
+
 type BasicCacher interface {
 	Prefix() string
 
