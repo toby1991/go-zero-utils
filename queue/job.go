@@ -49,9 +49,31 @@ type Job struct {
 	Custom     map[string]interface{} `json:"custom,omitempty"`
 }
 
+/*
+在广播模式下，faktory通过发送方来确定广播关系，nsq通过接收方来确定广播关系
+Faktory 星型拓扑：
+
+	        [Faktory Server]
+	       /        |        \
+	Worker(Q1)  Worker(Q2)  Worker(Q3)
+
+NSQ 网状拓扑：
+
+	       [Topic A]
+	      /         \
+	[Channel X]   [Channel Y]
+	   /   \          /   \
+	Worker1 Worker2 Worker3 Worker4
+*/
+func NewJob(topic, queue string, args ...interface{}) *Job {
+	_job := newJob(topic, args...)
+	_job.Queue = queue
+	return _job
+}
+
 // Clients should use this constructor to build a Job, not allocate
 // a bare struct directly.
-func NewJob(jobtype string, args ...interface{}) *Job {
+func newJob(jobtype string, args ...interface{}) *Job {
 	return &Job{
 		Type:      jobtype,
 		Queue:     "default",
