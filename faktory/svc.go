@@ -2,6 +2,7 @@ package faktory
 
 import (
 	"context"
+	"github.com/toby1991/go-zero-utils/queue"
 	"github.com/zeromicro/go-zero/core/logx"
 	"os"
 )
@@ -14,7 +15,7 @@ type faktoryClient struct {
 	_conf               FaktoryConf
 	senderPool          *faktory.Pool
 	workerMgr           *worker.Manager
-	jobNameProcessorMap map[string]JobProcessor
+	jobNameProcessorMap map[string]queue.JobProcessor
 	ctx                 context.Context
 	cancel              context.CancelFunc
 }
@@ -59,7 +60,7 @@ func NewFaktory(conf FaktoryConf) *faktoryClient {
 	}
 }
 
-func (c *faktoryClient) SetProcessor(jobNameProcessorMap map[string]JobProcessor) {
+func (c *faktoryClient) SetProcessor(jobNameProcessorMap map[string]queue.JobProcessor) {
 	c.jobNameProcessorMap = jobNameProcessorMap
 }
 func (c *faktoryClient) Context() context.Context {
@@ -67,7 +68,7 @@ func (c *faktoryClient) Context() context.Context {
 }
 
 // https://github.com/contribsys/faktory_worker_go#usage
-func (c *faktoryClient) processing(ctx context.Context, jobNameProcessorMap map[string]JobProcessor) {
+func (c *faktoryClient) processing(ctx context.Context, jobNameProcessorMap map[string]queue.JobProcessor) {
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	go func() {
