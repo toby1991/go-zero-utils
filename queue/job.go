@@ -65,9 +65,9 @@ NSQ 网状拓扑：
 	   /   \          /   \
 	Worker1 Worker2 Worker3 Worker4
 */
-func NewJob(topic, queue string, args ...interface{}) *Job {
-	_job := newJob(topic, args...)
-	_job.Queue = queue
+func NewJob(event, listener string, args ...interface{}) *Job {
+	_job := newJob(event, args...)
+	_job.Queue = listener
 	return _job
 }
 
