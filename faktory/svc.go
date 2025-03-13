@@ -2,6 +2,7 @@ package faktory
 
 import (
 	"context"
+	"github.com/jinzhu/copier"
 	"github.com/toby1991/go-zero-utils/queue"
 	"github.com/zeromicro/go-zero/core/logx"
 	"os"
@@ -114,9 +115,14 @@ func (c *faktoryClient) processing(ctx context.Context, jobNameProcessorMap map[
 	//<-c.ctx.Done()
 }
 
-func (c *faktoryClient) Push(job *faktory.Job) error {
+func (c *faktoryClient) Push(job *queue.Job) error {
 	return c.senderPool.With(func(cl *faktory.Client) error {
 		// job := faktory.NewJob("SomeJob", 1, 2, 3)
-		return cl.Push(job)
+		faktoryJob := faktory.NewJob("")
+		err := copier.Copy(faktoryJob, job)
+		if err != nil {
+			return err
+		}
+		return cl.Push(faktoryJob)
 	})
 }
