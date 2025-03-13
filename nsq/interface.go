@@ -10,6 +10,6 @@ type NsqClient interface {
 	service.Service
 
 	Context() context.Context
-	SetProcessor(jobTopicChannelMapWithProcessor map[Topic]ChannelProcessorMap)
+	SetProcessor(eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap)
 	Push(job *queue.Job) error
 }

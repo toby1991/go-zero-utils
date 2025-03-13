@@ -21,10 +21,10 @@ type DelayGoodsKlineDataFillingJobData struct {
 
 func Test_nsqClient_Push(t *testing.T) {
 	type fields struct {
-		_conf               NsqConf
-		senderPool          *ProducerPool
-		jobNameProcessorMap map[string]queue.JobProcessor
-		ctx                 context.Context
+		_conf            NsqConf
+		senderPool       *ProducerPool
+		eventListenerMap map[string]queue.ListenerHandler
+		ctx              context.Context
 	}
 	type args struct {
 		job *queue.Job
@@ -78,8 +78,8 @@ func Test_nsqClient_Push(t *testing.T) {
 
 func Test_nsqClient_Start(t *testing.T) {
 	type fields struct {
-		_conf                           NsqConf
-		jobTopicChannelMapWithProcessor map[Topic]ChannelProcessorMap
+		_conf                   NsqConf
+		eventListenerHandlerMap map[Topic]ListenerHandlerMap
 	}
 	tests := []struct {
 		name   string
@@ -98,7 +98,7 @@ func Test_nsqClient_Start(t *testing.T) {
 						PullFromQueuesWithPriority: map[string]int{"delay_ag_goods_kline_data_filling": 1},
 					},
 				},
-				jobTopicChannelMapWithProcessor: map[Topic]ChannelProcessorMap{
+				eventListenerHandlerMap: map[Topic]ListenerHandlerMap{
 					"delay_ag_goods_kline_data_filling": {
 						"delay_ag_goods_kline_data_filling": func(helper queue.Helper, args ...interface{}) error {
 							fmt.Println("delay_ag_goods_kline_data_filling", args, helper.Jid(), helper.JobType())
@@ -121,7 +121,7 @@ func Test_nsqClient_Start(t *testing.T) {
 						PullFromQueuesWithPriority: map[string]int{"ag_goods_5m": 1},
 					},
 				},
-				jobTopicChannelMapWithProcessor: map[Topic]ChannelProcessorMap{
+				eventListenerHandlerMap: map[Topic]ListenerHandlerMap{
 					"ag_goods_5m": {
 						"ag_goods_5m": func(helper queue.Helper, args ...interface{}) error {
 							fmt.Println(reflect.TypeOf(args[0]).String())
@@ -137,7 +137,7 @@ func Test_nsqClient_Start(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewNsq(tt.fields._conf)
-			c.SetProcessor(tt.fields.jobTopicChannelMapWithProcessor)
+			c.SetProcessor(tt.fields.eventListenerHandlerMap)
 			c.Start()
 
 			time.Sleep(time.Hour * 1)

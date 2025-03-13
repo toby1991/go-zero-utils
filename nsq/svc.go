@@ -7,17 +7,14 @@ import (
 	"time"
 )
 
-type Topic = string
-type Channel = string
-type ChannelProcessorMap = map[Channel]queue.JobProcessor
 type nsqClient struct {
 	_conf      NsqConf
 	senderPool *ProducerPool
 	workerPool *ConsumerPool
 
-	jobTopicChannelMapWithProcessor map[Topic]ChannelProcessorMap // map[string]queue.JobProcessor
-	ctx                             context.Context
-	cancel                          context.CancelFunc
+	eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap // map[string]queue.ListenerHandler
+	ctx                     context.Context
+	cancel                  context.CancelFunc
 }
 
 func NewNsq(conf NsqConf) *nsqClient {
@@ -41,14 +38,14 @@ func NewNsq(conf NsqConf) *nsqClient {
 	return _nsqClient
 }
 
-func (c *nsqClient) SetProcessor(jobTopicChannelMapWithProcessor map[Topic]ChannelProcessorMap) {
-	c.jobTopicChannelMapWithProcessor = jobTopicChannelMapWithProcessor
+func (c *nsqClient) SetProcessor(eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap) {
+	c.eventListenerHandlerMap = eventListenerHandlerMap
 }
 func (c *nsqClient) Context() context.Context {
 	return c.ctx
 }
 func (c *nsqClient) Start() {
-	c.processing(context.Background(), c.jobTopicChannelMapWithProcessor)
+	c.processing(context.Background(), c.eventListenerHandlerMap)
 }
 func (c *nsqClient) Stop() {
 	c.senderPool.Stop()
@@ -77,15 +74,15 @@ func (c *nsqClient) Push(job *queue.Job) error {
 	return c.senderPool.Publish(job.Queue, delay, jobJsonBytes)
 }
 
-func (c *nsqClient) processing(ctx context.Context, jobTopicChannelMapWithProcessor map[Topic]ChannelProcessorMap) {
+func (c *nsqClient) processing(ctx context.Context, eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap) {
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	// dlq
 	_dlq := newDlq(c.senderPool)
 
 	// register processor
-	for topic, channelMapWithProcessor := range jobTopicChannelMapWithProcessor {
-		for channel, processor := range channelMapWithProcessor {
+	for topic, listenerHandlerMap := range eventListenerHandlerMap {
+		for channel, processor := range listenerHandlerMap {
 
 			// register job processor one by one
 			newProcessor := processor

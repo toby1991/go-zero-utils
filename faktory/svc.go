@@ -10,19 +10,18 @@ import (
 import faktory "github.com/contribsys/faktory/client"
 import worker "github.com/contribsys/faktory_worker_go"
 
-type JobProcessor func(helper worker.Helper, args ...interface{}) error
-
 type faktoryClient struct {
-	_conf               FaktoryConf
-	senderPool          *faktory.Pool
-	workerMgr           *worker.Manager
-	jobNameProcessorMap map[string]queue.JobProcessor
-	ctx                 context.Context
-	cancel              context.CancelFunc
+	_conf                   FaktoryConf
+	senderPool              *faktory.Pool
+	workerMgr               *worker.Manager
+	eventListenerMap        map[string]queue.ListenerHandler
+	eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap
+	ctx                     context.Context
+	cancel                  context.CancelFunc
 }
 
 func (c *faktoryClient) Start() {
-	c.processing(context.Background(), c.jobNameProcessorMap)
+	c.processing(context.Background(), c.eventListenerHandlerMap)
 }
 
 func (c *faktoryClient) Stop() {
@@ -61,15 +60,15 @@ func NewFaktory(conf FaktoryConf) *faktoryClient {
 	}
 }
 
-func (c *faktoryClient) SetProcessor(jobNameProcessorMap map[string]queue.JobProcessor) {
-	c.jobNameProcessorMap = jobNameProcessorMap
+func (c *faktoryClient) SetProcessor(eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap) {
+	c.eventListenerHandlerMap = eventListenerHandlerMap
 }
 func (c *faktoryClient) Context() context.Context {
 	return c.ctx
 }
 
 // https://github.com/contribsys/faktory_worker_go#usage
-func (c *faktoryClient) processing(ctx context.Context, jobNameProcessorMap map[string]queue.JobProcessor) {
+func (c *faktoryClient) processing(ctx context.Context, eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap) {
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	go func() {
@@ -79,17 +78,22 @@ func (c *faktoryClient) processing(ctx context.Context, jobNameProcessorMap map[
 	}()
 
 	// register processor
-	for jobName, processor := range jobNameProcessorMap {
-		// register job processor one by one
-		newProcessor := processor
-		c.workerMgr.Register(
-			jobName,
-			func(ctx context.Context, args ...interface{}) error {
-				help := worker.HelperFor(ctx)
-				logx.Infof("Working on job %s\n", help.Jid())
-				return newProcessor(help, args...) // success then return nil as error, it will auto ack
-			},
-		)
+	for event, listenerHandlerMap := range eventListenerHandlerMap {
+		for listener, processor := range listenerHandlerMap {
+
+			jobType := ToJobType(event, listener)
+
+			// register job processor one by one
+			newProcessor := processor
+			c.workerMgr.Register(
+				jobType,
+				func(ctx context.Context, args ...interface{}) error {
+					help := worker.HelperFor(ctx)
+					logx.Infof("Working on job %s\n", help.Jid())
+					return newProcessor(help, args...) // success then return nil as error, it will auto ack
+				},
+			)
+		}
 	}
 	//
 	//go func() {
@@ -123,6 +127,7 @@ func (c *faktoryClient) Push(job *queue.Job) error {
 		if err != nil {
 			return err
 		}
+		faktoryJob.Type = ToJobType(faktoryJob.Type, faktoryJob.Queue)
 		return cl.Push(faktoryJob)
 	})
 }

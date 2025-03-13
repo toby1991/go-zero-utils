@@ -7,7 +7,7 @@ import (
 )
 
 type messageHandler struct {
-	processor queue.JobProcessor
+	processor queue.ListenerHandler
 	dlq       queue.Dlqer
 }
 
@@ -25,7 +25,7 @@ func (m *messageHandler) LogFailedMessage(message *nsq.Message) {
 	}
 }
 
-func newMessageHandler(processor queue.JobProcessor, dlq queue.Dlqer) *messageHandler {
+func newMessageHandler(processor queue.ListenerHandler, dlq queue.Dlqer) *messageHandler {
 	return &messageHandler{processor: processor, dlq: dlq}
 }
 

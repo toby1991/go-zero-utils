@@ -19,7 +19,7 @@ func newConsumerPool(nsqLookupdHttpAddresses []string, conf *nsq.Config) *Consum
 	}
 }
 
-func (c *ConsumerPool) RegisterProcessor(topic string, channel string, processor queue.JobProcessor, concurrency int, dlq queue.Dlqer) error {
+func (c *ConsumerPool) RegisterProcessor(topic string, channel string, processor queue.ListenerHandler, concurrency int, dlq queue.Dlqer) error {
 	consumer, err := nsq.NewConsumer(topic, channel, c.conf)
 	if err != nil {
 		return err

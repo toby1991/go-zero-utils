@@ -10,6 +10,6 @@ type FaktoryClient interface {
 	service.Service
 
 	Context() context.Context
-	SetProcessor(jobNameProcessorMap map[string]queue.JobProcessor)
+	SetProcessor(eventListenerHandlerMap map[queue.Event]queue.ListenerHandlerMap)
 	Push(job *queue.Job) error
 }
