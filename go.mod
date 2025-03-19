@@ -1,13 +1,13 @@
 module github.com/toby1991/go-zero-utils
 
-go 1.21
+go 1.22
 
-toolchain go1.22.2
+toolchain go1.23.7
 
 require (
 	entgo.io/ent v0.12.5
-	github.com/contribsys/faktory v1.8.0
-	github.com/contribsys/faktory_worker_go v1.6.1
+	github.com/contribsys/faktory v1.9.1
+	github.com/contribsys/faktory_worker_go v1.7.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/golang/protobuf v1.5.4
@@ -27,7 +27,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
