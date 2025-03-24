@@ -2,6 +2,8 @@ package jwt
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -32,7 +34,36 @@ func (j *jwtClient) AccessToken(userId string) (string, time.Time, error) {
 func (j *jwtClient) RefreshToken(userId string) (string, time.Time, error) {
 	return j.generate(j.refreshTokenPrefix, userId, j.refreshTokenExpiredInSeconds)
 }
+func (j *jwtClient) Generate(userId uint64) (accessToken, refreshToken string, expiredAt uint64, err error) {
+	_userId := strconv.FormatUint(userId, 10)
 
+	accessToken, accessTokenExpiredAt, err := j.AccessToken(_userId)
+	if err != nil {
+		return "", "", 0, err
+	}
+	refreshToken, _, err = j.RefreshToken(_userId)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	return accessToken, refreshToken, uint64(accessTokenExpiredAt.Unix()), nil
+}
+
+func (j *jwtClient) VerifyAccessToken(tokenStr string) (userId string, expiredAt time.Time, tokenId string, err error) {
+	return j.Verify(tokenStr)
+}
+
+func (j *jwtClient) VerifyRefreshToken(tokenStr string) (userId string, expiredAt time.Time, tokenId string, err error) {
+	userIdStr, _, tokenId, err := j.Verify(tokenStr)
+	if err != nil {
+		return "", time.Time{}, "", err
+	}
+	if !strings.HasPrefix(tokenId, j.refreshTokenPrefix) {
+		return "", time.Time{}, "", fmt.Errorf("invalid token")
+	}
+
+	return userIdStr, expiredAt, tokenId, nil
+}
 func (j *jwtClient) Verify(tokenStr string) (userId string, expiredAt time.Time, tokenId string, err error) {
 	// Parse takes the token string and a function for looking up the key. The latter is especially
 	// useful if you use multiple keys for your application.  The standard is to use 'kid' in the
