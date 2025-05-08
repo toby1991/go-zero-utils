@@ -3,6 +3,7 @@ package mixin
 import (
 	"context"
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql"
 	"fmt"
 	"time"
