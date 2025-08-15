@@ -80,6 +80,9 @@ func (j *jwtClient) Verify(tokenStr string) (userId string, expiredAt time.Time,
 		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
 		return []byte(j.secret), nil
 	})
+	if err != nil {
+		return "", time.Time{}, "", err
+	}
 
 	_ = token
 
