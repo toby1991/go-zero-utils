@@ -37,11 +37,14 @@ func (j *jwtClient) RefreshToken(userId string) (string, time.Time, error) {
 func (j *jwtClient) Generate(userId uint64) (accessToken, refreshToken string, expiredAt uint64, err error) {
 	_userId := strconv.FormatUint(userId, 10)
 
-	accessToken, accessTokenExpiredAt, err := j.AccessToken(_userId)
+	return j.GenerateBySubject(_userId)
+}
+func (j *jwtClient) GenerateBySubject(subject string) (accessToken, refreshToken string, expiredAt uint64, err error) {
+	accessToken, accessTokenExpiredAt, err := j.AccessToken(subject)
 	if err != nil {
 		return "", "", 0, err
 	}
-	refreshToken, _, err = j.RefreshToken(_userId)
+	refreshToken, _, err = j.RefreshToken(subject)
 	if err != nil {
 		return "", "", 0, err
 	}
