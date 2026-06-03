@@ -2,7 +2,7 @@ package queue
 
 import (
 	"context"
-	"github.com/zeromicro/go-zero/core/service"
+	"github.com/toby1991/go-zero/core/service"
 )
 
 type Client interface {

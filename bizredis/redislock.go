@@ -2,12 +2,13 @@ package bizredis
 
 import (
 	"context"
-	red "github.com/go-redis/redis/v8"
 	"strconv"
 	"sync/atomic"
 
-	"github.com/zeromicro/go-zero/core/logx"
-	"github.com/zeromicro/go-zero/core/stringx"
+	red "github.com/go-redis/redis/v8"
+
+	"github.com/toby1991/go-zero/core/logx"
+	"github.com/toby1991/go-zero/core/stringx"
 )
 
 const (
