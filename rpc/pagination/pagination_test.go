@@ -30,19 +30,19 @@ func TestValidatePaginationQuery(t *testing.T) {
 		name     string
 		fields   fields
 		args     args
-		want     Window
+		want     ValidatedPaginationQuery
 		wantCode codes.Code
 	}{
 		{
 			name:     "return all ignores nil query",
 			args:     args{returnAll: true},
-			want:     Window{Page: 1, PageSize: 0, Offset: 0, Limit: 0, ReturnAll: true},
+			want:     ValidatedPaginationQuery{Page: 1, PageSize: 0, Offset: 0, Limit: 0, ReturnAll: true},
 			wantCode: codes.OK,
 		},
 		{
 			name:     "return all ignores invalid query",
 			args:     args{query: fakePaginationQuery{page: 0, pageSize: 0}, returnAll: true},
-			want:     Window{Page: 1, PageSize: 0, Offset: 0, Limit: 0, ReturnAll: true},
+			want:     ValidatedPaginationQuery{Page: 1, PageSize: 0, Offset: 0, Limit: 0, ReturnAll: true},
 			wantCode: codes.OK,
 		},
 		{
@@ -68,13 +68,13 @@ func TestValidatePaginationQuery(t *testing.T) {
 		{
 			name:     "valid first page",
 			args:     args{query: fakePaginationQuery{page: 1, pageSize: 20}},
-			want:     Window{Page: 1, PageSize: 20, Offset: 0, Limit: 20},
+			want:     ValidatedPaginationQuery{Page: 1, PageSize: 20, Offset: 0, Limit: 20},
 			wantCode: codes.OK,
 		},
 		{
 			name:     "valid later page",
 			args:     args{query: fakePaginationQuery{page: 3, pageSize: 15}},
-			want:     Window{Page: 3, PageSize: 15, Offset: 30, Limit: 15},
+			want:     ValidatedPaginationQuery{Page: 3, PageSize: 15, Offset: 30, Limit: 15},
 			wantCode: codes.OK,
 		},
 		{
@@ -95,7 +95,7 @@ func TestValidatePaginationQuery(t *testing.T) {
 				return
 			}
 			if got != tt.want {
-				t.Fatalf("window = %+v, want %+v", got, tt.want)
+				t.Fatalf("pagination query = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

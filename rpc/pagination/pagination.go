@@ -13,8 +13,8 @@ type PaginationQuery interface {
 	GetPageSize() uint64
 }
 
-// Window 是已校验分页请求转换出的查询窗口。
-type Window struct {
+// ValidatedPaginationQuery 是已校验分页请求转换出的分页查询参数。
+type ValidatedPaginationQuery struct {
 	Page      uint64
 	PageSize  uint64
 	Offset    int
@@ -23,32 +23,32 @@ type Window struct {
 }
 
 // ValidatePaginationQuery 校验 paginationQuery + returnAll 契约，并返回 Offset/Limit。
-func ValidatePaginationQuery(query PaginationQuery, returnAll bool) (Window, error) {
+func ValidatePaginationQuery(query PaginationQuery, returnAll bool) (ValidatedPaginationQuery, error) {
 	if returnAll {
-		return Window{Page: 1, ReturnAll: true}, nil
+		return ValidatedPaginationQuery{Page: 1, ReturnAll: true}, nil
 	}
 	if query == nil {
-		return Window{}, status.Error(codes.InvalidArgument, "paginationQuery is required when returnAll is false")
+		return ValidatedPaginationQuery{}, status.Error(codes.InvalidArgument, "paginationQuery is required when returnAll is false")
 	}
 
 	page := query.GetPage()
 	if page == 0 {
-		return Window{}, status.Error(codes.InvalidArgument, "paginationQuery.page must be greater than 0")
+		return ValidatedPaginationQuery{}, status.Error(codes.InvalidArgument, "paginationQuery.page must be greater than 0")
 	}
 	pageSize := query.GetPageSize()
 	if pageSize == 0 {
-		return Window{}, status.Error(codes.InvalidArgument, "paginationQuery.pageSize must be greater than 0")
+		return ValidatedPaginationQuery{}, status.Error(codes.InvalidArgument, "paginationQuery.pageSize must be greater than 0")
 	}
 	if pageSize > MaxPageSize {
-		return Window{}, status.Error(codes.InvalidArgument, "paginationQuery.pageSize must be less than 50")
+		return ValidatedPaginationQuery{}, status.Error(codes.InvalidArgument, "paginationQuery.pageSize must be less than 50")
 	}
 
 	maxInt := uint64(^uint(0) >> 1)
 	if page > 1 && page-1 > maxInt/pageSize {
-		return Window{}, status.Error(codes.InvalidArgument, "paginationQuery offset overflows int")
+		return ValidatedPaginationQuery{}, status.Error(codes.InvalidArgument, "paginationQuery offset overflows int")
 	}
 
-	return Window{
+	return ValidatedPaginationQuery{
 		Page:     page,
 		PageSize: pageSize,
 		Offset:   int((page - 1) * pageSize),
