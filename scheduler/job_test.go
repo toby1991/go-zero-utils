@@ -3,10 +3,12 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-co-op/gocron/v2"
 	"github.com/toby1991/go-zero-utils/bizredis"
 )
 
@@ -115,6 +117,203 @@ func TestJobStopBeforeStartNoops(t *testing.T) {
 	svc.Stop()
 }
 
+func TestJobStartReturnsWhenAlreadyStarted(t *testing.T) {
+	svc := New(
+		"account.started",
+		Every(time.Hour),
+		&fakeRedisScripter{},
+		func(context.Context) error { return nil },
+	).(*jobService)
+	svc.started.Store(true)
+
+	done := make(chan struct{})
+	go func() {
+		svc.Start()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Start did not return when service was already started")
+	}
+}
+
+func TestJobStartReturnsWhenSchedulerSetupFails(t *testing.T) {
+	svc := &jobService{
+		job: job{
+			name: "account.bad_schedule",
+			schedule: schedule{
+				jobDefinition: gocron.DurationJob(0),
+				lockDuration:  time.Hour,
+			},
+			redis:   &fakeRedisScripter{},
+			handler: func(context.Context) error { return nil },
+			lockTTL: time.Hour,
+		},
+		stop: make(chan struct{}),
+		done: make(chan struct{}),
+	}
+
+	svc.Start()
+
+	select {
+	case <-svc.done:
+	default:
+		t.Fatal("Start did not close done after scheduler setup failure")
+	}
+}
+
+func TestJobStopReturnsWhenShutdownTimesOut(t *testing.T) {
+	startedHandler := make(chan struct{})
+	unblockHandler := make(chan struct{})
+	svc := New(
+		"account.shutdown_timeout",
+		Every(time.Millisecond),
+		&fakeRedisScripter{},
+		func(context.Context) error {
+			select {
+			case startedHandler <- struct{}{}:
+			default:
+			}
+			<-unblockHandler
+			return nil
+		},
+		WithStopTimeout(time.Millisecond),
+	)
+
+	started := startService(t, svc)
+	defer func() {
+		close(unblockHandler)
+		<-started
+	}()
+
+	select {
+	case <-startedHandler:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not start")
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		svc.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not return after shutdown timeout")
+	}
+}
+
+func TestNewAppliesOptionalSettings(t *testing.T) {
+	redis := &fakeRedisScripter{}
+	location := time.FixedZone("account-test", 8*60*60)
+	stopTimeout := 123 * time.Millisecond
+
+	svc := New(
+		"account.options",
+		DailyAt(0, 10, 0),
+		redis,
+		func(context.Context) error { return nil },
+		WithLocation(location),
+		WithStopTimeout(stopTimeout),
+	)
+
+	jobSvc := svc.(*jobService)
+	if jobSvc.job.location != location {
+		t.Fatalf("location = %v, want %v", jobSvc.job.location, location)
+	}
+	if jobSvc.job.StopTimeout != stopTimeout {
+		t.Fatalf("stop timeout = %v, want %v", jobSvc.job.StopTimeout, stopTimeout)
+	}
+	if _, err := jobSvc.newScheduler(); err != nil {
+		t.Fatalf("new scheduler with explicit location: %v", err)
+	}
+}
+
+func TestRunLockedReturnsAcquireError(t *testing.T) {
+	redisErr := errors.New("redis unavailable")
+	svc := New(
+		"account.acquire_error",
+		Every(time.Hour),
+		&fakeRedisScripter{acquireErr: redisErr},
+		func(context.Context) error {
+			t.Fatal("handler should not run when lock acquire fails")
+			return nil
+		},
+	)
+
+	err := svc.(*jobService).runLocked(context.Background())
+	if !errors.Is(err, redisErr) {
+		t.Fatalf("runLocked error = %v, want redis error", err)
+	}
+	if !strings.Contains(err.Error(), "scheduler:account.acquire_error") {
+		t.Fatalf("runLocked error = %q, want lock key", err.Error())
+	}
+}
+
+func TestRunLockedConvertsHandlerPanicToError(t *testing.T) {
+	svc := New(
+		"account.panic",
+		Every(time.Hour),
+		&fakeRedisScripter{},
+		func(context.Context) error {
+			panic("boom")
+		},
+	)
+
+	err := svc.(*jobService).runLocked(context.Background())
+	if err == nil {
+		t.Fatal("runLocked returned nil, want panic error")
+	}
+	if !strings.Contains(err.Error(), "scheduler job panic: boom") {
+		t.Fatalf("runLocked error = %q, want panic message", err.Error())
+	}
+}
+
+func TestRunOnceAcceptsNilParentContext(t *testing.T) {
+	ran := make(chan struct{}, 1)
+	svc := New(
+		"account.nil_parent",
+		Every(time.Hour),
+		&fakeRedisScripter{},
+		func(ctx context.Context) error {
+			if ctx == nil {
+				t.Fatal("handler context is nil")
+			}
+			ran <- struct{}{}
+			return nil
+		},
+	)
+
+	svc.(*jobService).runOnce(nil)
+
+	select {
+	case <-ran:
+	default:
+		t.Fatal("handler did not run")
+	}
+}
+
+func TestSafeRunReturnsHandlerError(t *testing.T) {
+	handlerErr := errors.New("handler failed")
+	svc := New(
+		"account.handler_error",
+		Every(time.Hour),
+		&fakeRedisScripter{},
+		func(context.Context) error {
+			return handlerErr
+		},
+	)
+
+	err := svc.(*jobService).safeRun(context.Background())
+	if !errors.Is(err, handlerErr) {
+		t.Fatalf("safeRun error = %v, want handler error", err)
+	}
+}
+
 func TestNewPanicsWhenRequiredArgsMissing(t *testing.T) {
 	redis := &fakeRedisScripter{}
 	tests := []struct {
@@ -143,6 +342,18 @@ func TestNewPanicsWhenRequiredArgsMissing(t *testing.T) {
 			name: "handler",
 			run: func() {
 				New("account.missing_handler", Every(time.Hour), redis, nil)
+			},
+		},
+		{
+			name: "lock ttl",
+			run: func() {
+				validateJob(job{
+					name:     "account.zero_ttl",
+					schedule: Every(time.Hour),
+					redis:    redis,
+					handler:  func(context.Context) error { return nil },
+					lockTTL:  0,
+				})
 			},
 		},
 	}
@@ -215,6 +426,7 @@ func stopService(t *testing.T, svc interface{ Stop() }, started <-chan struct{})
 type fakeRedisScripter struct {
 	mu           sync.Mutex
 	locked       bool
+	acquireErr   error
 	acquireKeys  []string
 	releaseCount int
 }
@@ -234,6 +446,9 @@ func (r *fakeRedisScripter) ScriptRunCtx(_ context.Context, _ *bizredis.Script, 
 	values, _ := args[0].([]string)
 	if len(values) == 2 {
 		r.acquireKeys = append(r.acquireKeys, keys[0])
+		if r.acquireErr != nil {
+			return nil, r.acquireErr
+		}
 		if r.locked {
 			return nil, nil
 		}
